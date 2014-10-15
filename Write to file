@@ -1,0 +1,17 @@
+Option Explicit
+Public g_strVar As String
+
+Sub Test_Proc()
+
+    g_strVar = ImportTextFile("C:\file.txt")
+    MsgBox g_strVar
+
+End Sub
+
+Function ImportTextFile(strFile As String) As String
+
+    Open strFile For Input As #1
+    ImportTextFile = Input$(LOF(1), 1)
+    Close #1
+
+End Function
