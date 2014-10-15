@@ -1,0 +1,48 @@
+What, no record numbers?
+
+In xBase, record numbers are commonly used for the record count, to loop through records, or to jump back to a record after working with another. Discovering there is no equivalent in Access can be a conceptual hurdle, but the absence of record numbers is intentional. Strictly speaking, assigning a physical record number is not relationally correct, and interesting things can happen to record numbers in a multi-tasking environment.
+
+There are two ways record-number addicts try to get around this in Access. The first is the AutoNumber type field (Counter in Access 1 and 2). While these at first appear similar, deleted AutoNumbers are not reassigned in the same way xBase reassigns record numbers, so the last number used will usually not be equal to the number of records. AutoNumber fields can be (and often are) used in referential lookups - an idea that would be disastrous with xBase record numbers. The other quasi-record number in Access is the number displayed in the bottom left of an open table, query, or form window, such as "Record 12 of 574". These numbers can be accessed if you have a good reason (see Numbering Entries in a Report or Form ), but please make sure you understand what not to do with them before you do so.
+
+So how do you code without record numbers? This function demonstrates how to use the RecordCount property, how to loop through records, and how to save a bookmark to return to a record again later.
+
+Function NoRecordNum ()
+    ' Purpose: shows how to get around without record numbers.
+    ' Modifications for Access 1.x noted in comments as "v.1:"
+
+    Dim db As Database
+    Dim Rst As Recordset     ' v.1: Rst as Table
+    Dim NumRecords As Long
+    Dim BM As String
+
+    Set db = CurrentDB()     ' v.2: Set db = dbengine(0)(0)
+    Set Rst = db.OpenRecordset("tblCustomers") ' v.1: db.OpenTable("tblCustomers")
+    If Rst.RecordCount = 0 Then
+        Exit Function
+    End If
+
+    ' Show record count, and loop backwards through records.
+    Rst.MoveLast
+    NumRecords = Rst.RecordCount
+    MsgBox NumRecords & " records."
+    Do While Not Rst.BOF
+        Debug.print Rst![ID]
+        Rst.MovePrevious
+    Loop
+
+    ' Use a bookmark to move back to a chosen record.
+    Randomize Timer
+    Rst.MoveFirst
+    Rst.Move Rnd * NumRecords  'Skip to a random record
+    BM = Rst.BookMark          'Save the bookmark
+    Rst.MoveLast               'Move somewhere else
+    Rst.BookMark = BM          'Back to previous place
+    Rst.Close
+    Set Rst = Nothing
+    Set db = Nothing
+    Debug.Print "Finished"
+End Function
+Please note that RecordCount contains:
+
+zero if there are no records; the full record count, if the recordset is a "Table" type;
+the number of records accessed so far in other cases (including SQLs).
