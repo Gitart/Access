@@ -1,0 +1,781 @@
+Option Compare Database
+Option Explicit
+
+'Constants for examining how a field is indexed.
+Private Const intcIndexNone As Integer = 0
+Private Const intcIndexGeneral As Integer = 1
+Private Const intcIndexUnique As Integer = 3
+Private Const intcIndexPrimary As Integer = 7
+
+Function CreateTableDAO()
+    'Purpose:   Create two tables using DAO.
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+    Dim fld As DAO.Field
+    
+    'Initialize the Contractor table.
+    Set db = CurrentDb()
+    Set tdf = db.CreateTableDef("tblDaoContractor")
+    
+    'Specify the fields.
+    With tdf
+        'AutoNumber: Long with the attribute set.
+        Set fld = .CreateField("ContractorID", dbLong)
+        fld.Attributes = dbAutoIncrField + dbFixedField
+        .Fields.Append fld
+        
+        'Text field: maximum 30 characters, and required.
+        Set fld = .CreateField("Surname", dbText, 30)
+        fld.Required = True
+        .Fields.Append fld
+        
+        'Text field: maximum 20 characters.
+        .Fields.Append .CreateField("FirstName", dbText, 20)
+        
+        'Yes/No field.
+        .Fields.Append .CreateField("Inactive", dbBoolean)
+        
+        'Currency field.
+        .Fields.Append .CreateField("HourlyFee", dbCurrency)
+        
+        'Number field.
+        .Fields.Append .CreateField("PenaltyRate", dbDouble)
+        
+        'Date/Time field with validation rule.
+        Set fld = .CreateField("BirthDate", dbDate)
+        fld.ValidationRule = "Is Null Or <=Date()"
+        fld.ValidationText = "Birth date cannot be future."
+        .Fields.Append fld
+        
+        'Memo field.
+        .Fields.Append .CreateField("Notes", dbMemo)
+        
+        'Hyperlink field: memo with the attribute set.
+        Set fld = .CreateField("Web", dbMemo)
+        fld.Attributes = dbHyperlinkField + dbVariableField
+        .Fields.Append fld
+    End With
+    
+    'Save the Contractor table.
+    db.TableDefs.Append tdf
+    Set fld = Nothing
+    Set tdf = Nothing
+    Debug.Print "tblDaoContractor created."
+    
+    'Initialize the Booking table
+    Set tdf = db.CreateTableDef("tblDaoBooking")
+    With tdf
+        'Autonumber
+        Set fld = .CreateField("BookingID", dbLong)
+        fld.Attributes = dbAutoIncrField + dbFixedField
+        .Fields.Append fld
+        
+        'BookingDate
+        .Fields.Append .CreateField("BookingDate", dbDate)
+        
+        'ContractorID
+        .Fields.Append .CreateField("ContractorID", dbLong)
+        
+        'BookingFee
+        .Fields.Append .CreateField("BookingFee", dbCurrency)
+        
+        'BookingNote: Required.
+        Set fld = .CreateField("BookingNote", dbText, 255)
+        fld.Required = True
+        .Fields.Append fld
+    End With
+    
+    'Save the Booking table.
+    db.TableDefs.Append tdf
+    Set fld = Nothing
+    Set tdf = Nothing
+    Debug.Print "tblDaoBooking created."
+    
+    'Clean up
+    Application.RefreshDatabaseWindow   'Show the changes
+    Set fld = Nothing
+    Set tdf = Nothing
+    Set db = Nothing
+End Function
+
+Function ModifyTableDAO()
+    'Purpose:   How to add and delete fields to existing tables.
+    'Note:      Requires the table created by CreateTableDAO() above.
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+    Dim fld As DAO.Field
+    
+    'Initialize
+    Set db = CurrentDb()
+
+    Set tdf = db.TableDefs("tblDaoContractor")
+    
+    'Add a field to the table.
+    tdf.Fields.Append tdf.CreateField("TestField", dbText, 80)
+    Debug.Print "Field added."
+    
+    'Delete a field from the table.
+    tdf.Fields.Delete "TestField"
+    Debug.Print "Field deleted."
+    
+    'Clean up
+    Set fld = Nothing
+    Set tdf = Nothing
+    Set db = Nothing
+End Function
+
+Function DeleteTableDAO()
+    DBEngine(0)(0).TableDefs.Delete "DaoTest"
+End Function
+
+Function MakeGuidTable()
+    'Purpose:   How to create a table with a GUID field.
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+    Dim fld As DAO.Field
+    Dim prp As DAO.Property
+
+    Set db = CurrentDb()
+    Set tdf = db.CreateTableDef("Table8")
+    With tdf
+        Set fld = .CreateField("ID", dbGUID)
+        fld.Attributes = dbFixedField
+        fld.DefaultValue = "GenGUID()"
+        .Fields.Append fld
+    End With
+    db.TableDefs.Append tdf
+End Function
+
+Function CreateIndexesDAO()
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+    Dim ind As DAO.Index
+    
+    'Initialize
+    Set db = CurrentDb()
+    Set tdf = db.TableDefs("tblDaoContractor")
+    
+    '1. Primary key index.
+    Set ind = tdf.CreateIndex("PrimaryKey")
+    With ind
+        .Fields.Append .CreateField("ContractorID")
+        .Unique = False
+        .Primary = True
+    End With
+    tdf.Indexes.Append ind
+    
+    '2. Single-field index.
+    Set ind = tdf.CreateIndex("Inactive")
+    ind.Fields.Append ind.CreateField("Inactive")
+    tdf.Indexes.Append ind
+    
+    '3. Multi-field index.
+    Set ind = tdf.CreateIndex("FullName")
+    With ind
+        .Fields.Append .CreateField("Surname")
+        .Fields.Append .CreateField("FirstName")
+    End With
+    tdf.Indexes.Append ind
+    
+    'Refresh the display of this collection.
+    tdf.Indexes.Refresh
+    
+    'Clean up
+    Set ind = Nothing
+    Set tdf = Nothing
+    Set db = Nothing
+    Debug.Print "tblDaoContractor indexes created."
+End Function
+
+Function DeleteIndexDAO()
+    DBEngine(0)(0).TableDefs("tblDaoContractor").Indexes.Delete "Inactive"
+End Function
+
+Function CreateRelationDAO()
+    Dim db As DAO.Database
+    Dim rel As DAO.Relation
+    Dim fld As DAO.Field
+    
+    'Initialize
+    Set db = CurrentDb()
+    
+    'Create a new relation.
+    Set rel = db.CreateRelation("tblDaoContractortblDaoBooking")
+    
+    'Define its properties.
+    With rel
+        'Specify the primary table.
+        .Table = "tblDaoContractor"
+        'Specify the related table.
+        .ForeignTable = "tblDaoBooking"
+        'Specify attributes for cascading updates and deletes.
+        .Attributes = dbRelationUpdateCascade + dbRelationDeleteCascade
+        
+        'Add the fields to the relation.
+        'Field name in primary table.
+        Set fld = .CreateField("ContractorID")
+        'Field name in related table.
+        fld.ForeignName = "ContractorID"
+        'Append the field.
+        .Fields.Append fld
+        
+        'Repeat for other fields if a multi-field relation.
+    End With
+    
+    'Save the newly defined relation to the Relations collection.
+    db.Relations.Append rel
+    
+    'Clean up
+    Set fld = Nothing
+    Set rel = Nothing
+    Set db = Nothing
+    Debug.Print "Relation created."
+End Function
+
+Function DeleteRelationDAO()
+    DBEngine(0)(0).Relations.Delete "tblDaoContractortblDaoBooking"
+End Function
+
+Function DeleteQueryDAO()
+    DBEngine(0)(0).QueryDefs.Delete "qryDaoBooking"
+End Function
+
+Function SetPropertyDAO(obj As Object, strPropertyName As String, intType As Integer, _
+    varValue As Variant, Optional strErrMsg As String) As Boolean
+On Error GoTo ErrHandler
+    'Purpose:   Set a property for an object, creating if necessary.
+    'Arguments: obj = the object whose property should be set.
+    '           strPropertyName = the name of the property to set.
+    '           intType = the type of property (needed for creating)
+    '           varValue = the value to set this property to.
+    '           strErrMsg = string to append any error message to.
+    
+    If HasProperty(obj, strPropertyName) Then
+        obj.Properties(strPropertyName) = varValue
+    Else
+        obj.Properties.Append obj.CreateProperty(strPropertyName, intType, varValue)
+    End If
+    SetPropertyDAO = True
+
+ExitHandler:
+    Exit Function
+
+ErrHandler:
+    strErrMsg = strErrMsg & obj.Name & "." & strPropertyName & " not set to " & varValue & _
+        ". Error " & Err.Number & " - " & Err.Description & vbCrLf
+    Resume ExitHandler
+End Function
+
+Public Function HasProperty(obj As Object, strPropName As String) As Boolean
+    'Purpose:   Return true if the object has the property.
+    Dim varDummy As Variant
+    
+    On Error Resume Next
+    varDummy = obj.Properties(strPropName)
+    HasProperty = (Err.Number = 0)
+End Function
+
+Function StandardProperties(strTableName As String)
+    'Purpose:   Properties you always want set by default:
+    '           TableDef:        Subdatasheets off.
+    '           Numeric fields:  Remove Default Value.
+    '           Currency fields: Format as currency.
+    '           Yes/No fields:   Display as check box. Default to No.
+    '           Text/memo/hyperlink: AllowZeroLength off,
+    '                                UnicodeCompression on.
+    '           All fields:      Add a caption if mixed case.
+    'Argument:  Name of the table.
+    'Note:      Requires: SetPropertyDAO()
+    Dim db As DAO.Database      'Current database.
+    Dim tdf As DAO.TableDef     'Table nominated in argument.
+    Dim fld As DAO.Field        'Each field.
+    Dim strCaption As String    'Field caption.
+    Dim strErrMsg As String     'Responses and error messages.
+    
+    'Initalize.
+    Set db = CurrentDb()
+    Set tdf = db.TableDefs(strTableName)
+    
+    'Set the table's SubdatasheetName.
+    Call SetPropertyDAO(tdf, "SubdatasheetName", dbText, "[None]", _
+        strErrMsg)
+    
+    For Each fld In tdf.Fields
+        'Handle the defaults for the different field types.
+        Select Case fld.Type
+        Case dbText, dbMemo 'Includes hyperlinks.
+            fld.AllowZeroLength = False
+            Call SetPropertyDAO(fld, "UnicodeCompression", dbBoolean, _
+                True, strErrMsg)
+        Case dbCurrency
+            fld.DefaultValue = 0
+            Call SetPropertyDAO(fld, "Format", dbText, "Currency", _
+                strErrMsg)
+        Case dbLong, dbInteger, dbByte, dbDouble, dbSingle, dbDecimal
+            fld.DefaultValue = vbNullString
+        Case dbBoolean
+            Call SetPropertyDAO(fld, "DisplayControl", dbInteger, _
+                CInt(acCheckBox))
+        End Select
+        
+        'Set a caption if needed.
+        strCaption = ConvertMixedCase(fld.Name)
+        If strCaption <> fld.Name Then
+            Call SetPropertyDAO(fld, "Caption", dbText, strCaption)
+        End If
+        
+        'Set the field's Description.
+        Call SetFieldDescription(tdf, fld, , strErrMsg)
+    Next
+    
+    'Clean up.
+    Set fld = Nothing
+    Set tdf = Nothing
+    Set db = Nothing
+    If Len(strErrMsg) > 0 Then
+        Debug.Print strErrMsg
+    Else
+        Debug.Print "Properties set for table " & strTableName
+    End If
+End Function
+
+Function ConvertMixedCase(ByVal strIn As String) As String
+    'Purpose:   Convert mixed case name into a name with spaces.
+    'Argument:  String to convert.
+    'Return:    String converted by these rules:
+    '           1. One space before an upper case letter.
+    '           2. Replace underscores with spaces.
+    '           3. No spaces between continuing upper case.
+    'Example:   "FirstName" or "First_Name" => "First Name".
+    Dim lngStart As Long        'Loop through string.
+    Dim strOut As String        'Output string.
+    Dim boolWasSpace As Boolean 'Last char. was a space.
+    Dim boolWasUpper As Boolean 'Last char. was upper case.
+    
+    strIn = Trim$(strIn)        'Remove leading/trailing spaces.
+    boolWasUpper = True         'Initialize for no first space.
+    
+    For lngStart = 1& To Len(strIn)
+        Select Case Asc(Mid(strIn, lngStart, 1&))
+        Case vbKeyA To vbKeyZ   'Upper case: insert a space.
+            If boolWasSpace Or boolWasUpper Then
+                strOut = strOut & Mid(strIn, lngStart, 1&)
+            Else
+                strOut = strOut & " " & Mid(strIn, lngStart, 1&)
+            End If
+            boolWasSpace = False
+            boolWasUpper = True
+            
+        Case 95                 'Underscore: replace with space.
+            If Not boolWasSpace Then
+                strOut = strOut & " "
+            End If
+            boolWasSpace = True
+            boolWasUpper = False
+            
+        Case vbKeySpace         'Space: output and set flag.
+            If Not boolWasSpace Then
+                strOut = strOut & " "
+            End If
+            boolWasSpace = True
+            boolWasUpper = False
+            
+        Case Else               'Any other char: output.
+            strOut = strOut & Mid(strIn, lngStart, 1&)
+            boolWasSpace = False
+            boolWasUpper = False
+        End Select
+    Next
+    
+    ConvertMixedCase = strOut
+End Function
+
+Function SetFieldDescription(tdf As DAO.TableDef, fld As DAO.Field, _
+Optional ByVal strDescrip As String, Optional strErrMsg As String) _
+As Boolean
+    'Purpose:   Assign a Description to a field.
+    'Arguments: tdf = the TableDef the field belongs to.
+    '           fld = the field to document.
+    '           strDescrip = The description text you want.
+    '                        If blank, uses Caption or Name of field.
+    '           strErrMsg  = string to append any error messages to.
+    'Notes:     Description includes field size, validation,
+    '               whether required or unique.
+    
+    If (fld.Attributes And dbAutoIncrField) > 0& Then
+        strDescrip = strDescrip & " Automatically generated " & _
+            "unique identifier for this record."
+    Else
+        'If no description supplied, use the field's Caption or Name.
+        If Len(strDescrip) = 0& Then
+            If HasProperty(fld, "Caption") Then
+                If Len(fld.Properties("Caption")) > 0& Then
+                    strDescrip = fld.Properties("Caption") & "."
+                End If
+            End If
+            If Len(strDescrip) = 0& Then
+                strDescrip = fld.Name & "."
+            End If
+        End If
+        
+        'Size of the field.
+        'Ignore Date, Memo, Yes/No, Currency, Decimal, GUID,
+        '   Hyperlink, OLE Object.
+        Select Case fld.Type
+        Case dbByte, dbInteger, dbLong
+            strDescrip = strDescrip & " Whole number."
+        Case dbSingle, dbDouble
+            strDescrip = strDescrip & " Fractional number."
+        Case dbText
+            strDescrip = strDescrip & " " & fld.Size & "-char max."
+        End Select
+        
+        'Required and/or Unique?
+        'Check for single-field index, and Required property.
+        Select Case IndexOnField(tdf, fld)
+        Case intcIndexPrimary
+            strDescrip = strDescrip & " Required. Unique."
+        Case intcIndexUnique
+            If fld.Required Then
+                strDescrip = strDescrip & " Required. Unique."
+            Else
+                strDescrip = strDescrip & " Unique."
+            End If
+        Case Else
+            If fld.Required Then
+                strDescrip = strDescrip & " Required."
+            End If
+        End Select
+        
+        'Validation?
+        If Len(fld.ValidationRule) > 0& Then
+            If Len(fld.ValidationText) > 0& Then
+                strDescrip = strDescrip & " " & fld.ValidationText
+            Else
+                strDescrip = strDescrip & " " & fld.ValidationRule
+            End If
+        End If
+    End If
+    
+    If Len(strDescrip) > 0& Then
+        strDescrip = Trim$(Left$(strDescrip, 255&))
+        SetFieldDescription = SetPropertyDAO(fld, "Description", _
+            dbText, strDescrip, strErrMsg)
+    End If
+End Function
+
+Private Function IndexOnField(tdf As DAO.TableDef, fld As DAO.Field) _
+As Integer
+    'Purpose:   Indicate if there is a single-field index _
+    '               on this field in this table.
+    'Return:    The constant indicating the strongest type.
+    Dim ind As DAO.Index
+    Dim intReturn As Integer
+    
+    intReturn = intcIndexNone
+    
+    For Each ind In tdf.Indexes
+        If ind.Fields.Count = 1 Then
+            If ind.Fields(0).Name = fld.Name Then
+                If ind.Primary Then
+                    intReturn = (intReturn Or intcIndexPrimary)
+                ElseIf ind.Unique Then
+                    intReturn = (intReturn Or intcIndexUnique)
+                Else
+                    intReturn = (intReturn Or intcIndexGeneral)
+                End If
+            End If
+        End If
+    Next
+    
+    'Clean up
+    Set ind = Nothing
+    IndexOnField = intReturn
+End Function
+
+Function CreateQueryDAO()
+    'Purpose:   How to create a query
+    'Note:      Requires a table named MyTable.
+    Dim db As DAO.Database
+    Dim qdf As DAO.QueryDef
+    
+    Set db = CurrentDb()
+    
+    'The next line creates and automatically appends the QueryDef.
+    Set qdf = db.CreateQueryDef("qryMyTable")
+    
+    'Set the SQL property to a string representing a SQL statement.
+    qdf.SQL = "SELECT MyTable.* FROM MyTable;"
+    
+    'Do not append: QueryDef is automatically appended!
+
+    Set qdf = Nothing
+    Set db = Nothing
+    Debug.Print "qryMyTable created."
+End Function
+
+Function CreateDatabaseDAO()
+    'Purpose:   How to create a new database and set key properties.
+    Dim dbNew As DAO.Database
+    Dim prp As DAO.Property
+    Dim strFile As String
+    
+    'Create the new database.
+    strFile = "C:\SampleDAO.mdb"
+    Set dbNew = DBEngine(0).CreateDatabase(strFile, dbLangGeneral)
+    
+    'Create example properties in new database.
+    With dbNew
+        Set prp = .CreateProperty("Perform Name AutoCorrect", dbLong, 0)
+        .Properties.Append prp
+        Set prp = .CreateProperty("Track Name AutoCorrect Info", _
+            dbLong, 0)
+        .Properties.Append prp
+    End With
+    
+    'Clean up.
+    dbNew.Close
+    Set prp = Nothing
+    Set dbNew = Nothing
+    Debug.Print "Created " & strFile
+End Function
+
+Function ShowDatabaseProps()
+    'Purpose:   List the properies of the current database.
+    Dim db As DAO.Database
+    Dim prp As DAO.Property
+    
+    Set db = CurrentDb()
+    For Each prp In db.Properties
+        Debug.Print prp.Name
+    Next
+    
+    Set db = Nothing
+End Function
+
+Function ShowFields(strTable As String)
+    'Purpose:   How to read the fields of a table.
+    'Usage:     Call ShowFields("Table1")
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+    Dim fld As DAO.Field
+    
+    Set db = CurrentDb()
+    Set tdf = db.TableDefs(strTable)
+    For Each fld In tdf.Fields
+        Debug.Print fld.Name, FieldTypeName(fld)
+    Next
+    
+    Set fld = Nothing
+    Set tdf = Nothing
+    Set db = Nothing
+End Function
+
+Function ShowFieldsRS(strTable)
+    'Purpose:   How to read the field names and types from a table or query.
+    'Usage:     Call ShowFieldsRS("Table1")
+    Dim rs As DAO.Recordset
+    Dim fld As DAO.Field
+    Dim strSql As String
+    
+    strSql = "SELECT " & strTable & ".* FROM " & strTable & " WHERE (False);"
+    Set rs = DBEngine(0)(0).OpenRecordset(strSql)
+    For Each fld In rs.Fields
+        Debug.Print fld.Name, FieldTypeName(fld), "from " & fld.SourceTable & "." & fld.SourceField
+    Next
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Public Function FieldTypeName(fld As DAO.Field)
+    'Purpose: Converts the numeric results of DAO fieldtype to text.
+    'Note:    fld.Type is Integer, but the constants are Long.
+    Dim strReturn As String         'Name to return
+    
+    Select Case CLng(fld.Type)
+        Case dbBoolean: strReturn = "Yes/No"            ' 1
+        Case dbByte: strReturn = "Byte"                 ' 2
+        Case dbInteger: strReturn = "Integer"           ' 3
+        Case dbLong                                     ' 4
+            If (fld.Attributes And dbAutoIncrField) = 0& Then
+                strReturn = "Long Integer"
+            Else
+                strReturn = "AutoNumber"
+            End If
+        Case dbCurrency: strReturn = "Currency"         ' 5
+        Case dbSingle: strReturn = "Single"             ' 6
+        Case dbDouble: strReturn = "Double"             ' 7
+        Case dbDate: strReturn = "Date/Time"            ' 8
+        Case dbBinary: strReturn = "Binary"             ' 9 (no interface)
+        Case dbText                                     '10
+            If (fld.Attributes And dbFixedField) = 0& Then
+                strReturn = "Text"
+            Else
+                strReturn = "Text (fixed width)"
+            End If
+        Case dbLongBinary: strReturn = "OLE Object"     '11
+        Case dbMemo                                     '12
+            If (fld.Attributes And dbHyperlinkField) = 0& Then
+                strReturn = "Memo"
+            Else
+                strReturn = "Hyperlink"
+            End If
+        Case dbGUID: strReturn = "GUID"                 '15
+        
+        'Attached tables only: cannot create these in JET.
+        Case dbBigInt: strReturn = "Big Integer"        '16
+        Case dbVarBinary: strReturn = "VarBinary"       '17
+        Case dbChar: strReturn = "Char"                 '18
+        Case dbNumeric: strReturn = "Numeric"           '19
+        Case dbDecimal: strReturn = "Decimal"           '20
+        Case dbFloat: strReturn = "Float"               '21
+        Case dbTime: strReturn = "Time"                 '22
+        Case dbTimeStamp: strReturn = "Time Stamp"      '23
+        
+        'Constants for complex types don't work prior to Access 2007.
+        Case 101&: strReturn = "Attachment"         'dbAttachment
+        Case 102&: strReturn = "Complex Byte"       'dbComplexByte
+        Case 103&: strReturn = "Complex Integer"    'dbComplexInteger
+        Case 104&: strReturn = "Complex Long"       'dbComplexLong
+        Case 105&: strReturn = "Complex Single"     'dbComplexSingle
+        Case 106&: strReturn = "Complex Double"     'dbComplexDouble
+        Case 107&: strReturn = "Complex GUID"       'dbComplexGUID
+        Case 108&: strReturn = "Complex Decimal"    'dbComplexDecimal
+        Case 109&: strReturn = "Complex Text"       'dbComplexText
+        Case Else: strReturn = "Field type " & fld.Type & " unknown"
+    End Select
+    
+    FieldTypeName = strReturn
+End Function
+
+Function DAORecordsetExample()
+    'Purpose:   How to open a recordset and loop through the records.
+    'Note:      Requires a table named MyTable, with a field named MyField.
+    Dim rs As DAO.Recordset
+    Dim strSql As String
+    
+    strSql = "SELECT MyField FROM MyTable;"
+    Set rs = DBEngine(0)(0).OpenRecordset(strSql)
+    
+    Do While Not rs.EOF
+        Debug.Print rs!MyField
+        rs.MoveNext
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Function ShowFormProperties(strFormName As String)
+On Error GoTo Err_Handler
+    'Purpose:   Loop through the controls on a form, showing names and properties.
+    'Usage:     Call ShowFormProperties("Form1")
+    Dim frm As Form
+    Dim ctl As Control
+    Dim prp As Property
+    Dim strOut As String
+    
+    DoCmd.OpenForm strFormName, acDesign, WindowMode:=acHidden
+    Set frm = Forms(strFormName)
+    
+    For Each ctl In frm
+        For Each prp In ctl.Properties
+            strOut = strFormName & "." & ctl.Name & "." & prp.Name & ": "
+            strOut = strOut & prp.Type & vbTab
+            strOut = strOut & prp.Value
+            Debug.Print strOut
+        Next
+        If ctl.ControlType = acTextBox Then Stop
+    Next
+    
+    Set frm = Nothing
+    DoCmd.Close acForm, strFormName, acSaveNo
+
+Exit_Handler:
+    Exit Function
+
+Err_Handler:
+    Select Case Err.Number
+    Case 2186:
+        strOut = strOut & Err.Description
+        Resume Next
+    Case Else
+        MsgBox "Error " & Err.Number & ": " & Err.Description, vbExclamation, "ShowFormProperties()"
+        Resume Exit_Handler
+    End Select
+End Function
+
+Public Function ExecuteInTransaction(strSql As String, Optional strConfirmMessage As String) As Long
+On Error GoTo Err_Handler
+    'Purpose:   Execute the SQL statement on the current database in a transaction.
+    'Return:    RecordsAffected if zero or above.
+    'Arguments: strSql = the SQL statement to be executed.
+    '           strConfirmMessage = the message to show the user for confirmation. Number will be added to front.
+    '           No confirmation if ZLS.
+    '           -1 on error.
+    '           -2 on user-cancel.
+    Dim ws As DAO.Workspace
+    Dim db As DAO.Database
+    Dim bInTrans As Boolean
+    Dim bCancel As Boolean
+    Dim strMsg As String
+    Dim lngReturn As Long
+    Const lngcUserCancel = -2&
+    
+    Set ws = DBEngine(0)
+    ws.BeginTrans
+    bInTrans = True
+    Set db = ws(0)
+    db.Execute strSql, dbFailOnError
+    lngReturn = db.RecordsAffected
+    If strConfirmMessage <> vbNullString Then
+        If MsgBox(lngReturn & " " & Trim$(strConfirmMessage), vbOKCancel + vbQuestion, "Confirm") <> vbOK Then
+            bCancel = True
+            lngReturn = lngcUserCancel
+        End If
+    End If
+    
+    'Commmit or rollback.
+    If bCancel Then
+        ws.Rollback
+    Else
+        ws.CommitTrans
+    End If
+    bInTrans = False
+
+Exit_Handler:
+    ExecuteInTransaction = lngReturn
+    On Error Resume Next
+    Set db = Nothing
+    If bInTrans Then
+        ws.Rollback
+    End If
+    Set ws = Nothing
+    Exit Function
+
+Err_Handler:
+    MsgBox "Error " & Err.Number & ": " & Err.Description, vbExclamation, "ExecuteInTransaction()"
+    lngReturn = -1
+    Resume Exit_Handler
+End Function
+
+Function GetAutoNumDAO(strTable) As String
+    'Purpose:   Get the name of the AutoNumber field, using DAO.
+    Dim db As DAO.Database
+    Dim tdf As DAO.TableDef
+    Dim fld As DAO.Field
+    
+    Set db = CurrentDb()
+    Set tdf = db.TableDefs(strTable)
+    
+    For Each fld In tdf.Fields
+        If (fld.Attributes And dbAutoIncrField) <> 0 Then
+            GetAutoNumDAO = fld.Name
+            Exit For
+        End If
+    Next
+    
+    Set fld = Nothing
+    Set tdf = Nothing
+    Set db = Nothing
+End Function
