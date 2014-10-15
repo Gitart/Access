@@ -1,0 +1,444 @@
+'Purpose:   Generate a web page from a table or query.
+'Usage:     Call OutputHTML("MyQuery", "C:\MyFolder\MyFile.html")
+
+'Author:    Allen Browne
+'Copyright: None. You may use this in your database as you wish.
+'Details:   http://allenbrowne.com/AppOutputHtml.html
+'Date:      October 2007
+
+'Notes:     1. Use a query to choose only some fields or alias them.
+'           2. Ignores any fields of type OLE Object or Binary.
+'           3. Spaces are added to mixed-case field names, e.g. LastName becomes Last Name.
+'           4. Handles blanks better than TransferText.
+Option Compare Database
+Option Explicit
+
+'Author and Copyright data will be used in the HTML header.
+Private Const mstrcAuthor = ""                  'Insert your name inside the quotes.
+Private Const mstrcCopyright = ""               'Whoever is responsible for the web page, in the quotes.
+Private Const mstrcCSS = "AccessOutput.css"     'Include the path if the CSS is not in the same folder.
+
+Private Const mstrcDateFormat = "General Date"  'How to format Date/Time fields.
+Private Const mstrcCurrencyFormat = "Currency"  'How to format Currency fields.
+Private Const mstrcYesNoFormat = "Yes/No"       'How to format Yes/No fields.
+
+'*****************************
+'Examples of how to use
+'*****************************
+Function Test1()
+    'This creates a file named "MyTable.htm" in the current directory, from the records in MyTable.
+    Call OutputHTML("MyTable")
+End Function
+Function Test2()
+    'This outputs the same records to the named file, and adds the text to the table.
+    Dim strMsg As String
+    
+    strMsg = OutputHTML("MyTable", "C:\MyFolder\MyFile.htm", "Show this in browser title bar", "Show this at top of page", _
+        "This sample was generated from Access using a utility by Allen Browne", "That's all")
+    MsgBox strMsg, vbInformation, "Results"
+End Function
+Function Test3()
+    'This does the same, but illustrates how you can add your own HTML for the head and foot paragraphs.
+    Debug.Print OutputHTML("MyTable", "C:\MyFolder\MyFile.htm", "My brower's title", "Records from MyTable", _
+        "<p>G'day.</p><p>Here's <b>the data</b>.</p>", "<p align=""center"">--Dated " & Now() & "--</p>")
+End Function
+
+'*****************************
+'This is the main function
+'*****************************
+Public Function OutputHTML(strTableOrQuery As String, _
+    Optional ByVal strOutputFile As String, _
+    Optional strTitle As String, _
+    Optional strHeadingText As String, _
+    Optional strHeadParagraph As String, _
+    Optional strFootParagraph As String, _
+    Optional strDescription As String, _
+    Optional strKeywords As String, _
+    Optional strIndexField As String, _
+    Optional bShowItNow As Boolean = True) As String
+On Error GoTo Err_Handler
+    'Purpose:   Create an HTML file from an Access table/query.
+    'Return:    Description of file created. Zero-length string on error.
+    'Arguments: strTableOrQuery  = name of the table or query to export.
+    '           strOutputFile    = can be: - fully qualified file name, e.g. "C:\MyFolder\MyFile.htm"
+    '                                      - just a file name (current folder used)
+    '                                      - a folder (adds ".htm" to strTableOrQuery)
+    '                                      - blank (".htm" added to strTableOrAQuery in current folder.)
+    '           strHeadingText   = text to appear as a heading at the top of the web page.
+    '           strHeadParagraph = text to display above the table of data.
+    '           strFootParagraph = text to display below the table of data.
+    '           strDescription   = description to include in the HTML header of the file.
+    '           strKeywords      = list of keywords to include in the HTML header of the file.
+    '           strIndexField    = name of the text field the list is sorted by (to create an index list.)
+    '           bShowItNow       = True to display as soon as finished.
+    'Note:      The optional arguments must be valid HTML (ampersand, quotes, etc.)
+    '               Pargraph tags are added unless they begin with a tag.
+    Dim db As DAO.Database          'This database
+    Dim rs As DAO.Recordset         'Table/query
+    Dim fld As DAO.Field            'Each field.
+    Dim iFileNum As Integer         'File number for output file.
+    Dim lngKt As Long               'Number of records
+    Dim bIndex As Boolean           'Flag to generate an HTML index for the table.
+    Dim strIndexString As String    'HTML table of the prefix characters in this data.
+    Dim strLastIndexChar As String  'The last index character generated.
+    Dim strChar As String           'First character in the indexed field in this record.
+    Dim strInitText As String       'Text to pass to FormatCell() when new index location required.
+    
+    'Open the source table/query, and start the output file.
+    Set db = CurrentDb()
+    Set rs = db.OpenRecordset(strTableOrQuery)
+    strOutputFile = FixupFilename(strOutputFile, strTableOrQuery, "htm")
+    iFileNum = FreeFile
+    Open strOutputFile For Output As #iFileNum
+    DoCmd.Hourglass True
+    
+    'Create the HTML Header
+    Print #1, "<!DOCTYPE HTML PUBLIC ""-//W3C//DTD HTML 4.01 Transitional//EN"" ""http://www.w3.org/TR/html4/loose.dtd"">"
+    Print #1, "<html>"
+    Print #1, "<head>"
+    Print #1, "<meta http-equiv=""Content-Type"" content=""text/html; charset=windows-1252"">"
+    Print #1, "<meta http-equiv=""Content-Language"" content=""en-us"">"
+    If strTitle <> vbNullString Then
+        Print #1, "<title>" & strTitle & "</title>"
+    End If
+    If strDescription <> vbNullString Then
+        Print #1, "<meta name=""description"" content=""" & strDescription & """>"
+    End If
+    If strKeywords <> vbNullString Then
+        Print #1, "<META name=""keywords"" content=""" & strKeywords & """>"
+    End If
+    Print #1, "<META name=""Author"" content=""" & mstrcAuthor & """>"
+    Print #1, "<META name=""copyright"" content=""&copy; " & Year(Date) & " " & mstrcCopyright & """>"
+    Print #1, "<base target=""_top"">"
+    If mstrcCSS <> vbNullString Then
+        Print #1, "<LINK rel=""stylesheet"" type=""text/css"" href=""" & mstrcCSS & """>"
+    End If
+    Print #1, "</head>"
+    
+    'Start the body with the heading and header paragraph
+    Print #1, "<body>"
+    If strHeadingText <> vbNullString Then
+        If strHeadingText Like "<*" Then
+            Print #1, strHeadingText
+        Else
+            Print #1, "<h1>" & strHeadingText & "</h1>"
+        End If
+    End If
+    If strHeadParagraph <> vbNullString Then
+        If strHeadParagraph Like "<*" Then
+            Print #1, strHeadParagraph
+        Else
+            Print #1, "<p>" & strHeadParagraph & "</p>"
+        End If
+    End If
+    
+    If strIndexField <> vbNullString Then
+        strIndexString = GetIndexString(db, strTableOrQuery, strIndexField)
+        If strIndexString <> vbNullString Then
+            bIndex = True
+            Print #1, strIndexString
+        End If
+    End If
+    
+    'Start a table, with a column for each field.
+    Print #1, "<table width=""100%"">"
+    Print #1, "<tr>"
+    For Each fld In rs.Fields
+        If Not IgnoreField(fld) Then
+            'If the field has a Caption, use that; otherwise its name.
+            If HasProperty(fld, "Caption") Then
+                Print #1, "<th>" & fld.Properties("Caption") & "</th>"
+            Else
+                Print #1, "<th>" & ConvertMixedCase(fld.Name) & "</th>"
+            End If
+        End If
+    Next
+    Print #1, "</tr>"
+    
+    'Loop through the records, adding rows to the HTML table.
+    Do While Not rs.EOF
+        If bIndex Then
+            strChar = Nz(UCase(Left(rs(strIndexField), 1)), vbNullString)
+            If (strChar > strLastIndexChar) And (strChar >= "A") And (strChar <= "Z") Then
+                strInitText = "<a name=""" & strChar & """></a>"
+                strLastIndexChar = strChar
+            End If
+        End If
+        Print #1, "<tr>"
+        For Each fld In rs.Fields
+            If Not IgnoreField(fld) Then
+                Print #1, FormatCell(fld, strInitText)
+            End If
+        Next
+        Print #1, "</tr>"
+        lngKt = lngKt + 1
+        rs.MoveNext
+    Loop
+    
+    'Close the table, add the footer paragraph, and complete the HTML.
+    Print #1, "</table>"
+    If strIndexString <> vbNullString Then
+        Print #1, strIndexString
+    End If
+    If strFootParagraph <> vbNullString Then
+        If strFootParagraph Like "<*" Then
+            Print #1, strFootParagraph
+        Else
+            Print #1, "<p>" & strFootParagraph & "</p>"
+        End If
+    End If
+    Print #1, "</body>"
+    Print #1, "</html>"
+    
+    'Return information about the HTML file.
+    OutputHTML = strOutputFile & " written " & Now() & " has " & _
+        IIf(lngKt = 1, "1 record", lngKt & " records") & " from " & strTableOrQuery & "."
+    
+Exit_Handler:
+    'Clean up. (These operations must happen even after an error.)
+    On Error Resume Next
+    Close #iFileNum
+    Set fld = Nothing
+    rs.Close
+    Set rs = Nothing
+    Set db = Nothing
+    If bShowItNow Then
+        FollowHyperlink strOutputFile
+    End If
+    DoCmd.Hourglass False
+    Exit Function
+    
+Err_Handler:
+    MsgBox "Error " & Err.Number & ":  " & Err.Description, vbExclamation, "OutputHTML()"
+    Resume Exit_Handler
+End Function
+
+Private Function ConvertMixedCase(ByVal strIn As String) As String
+    'Purpose:   Convert mixed case name into a name with spaces.
+    'Argument:  String to convert.
+    'Return:    String converted by these rules:
+    '           1. One space before an upper case letter.
+    '           2. Replace underscores with spaces.
+    '           3. No spaces between continuing upper case.
+    'Example:   "FirstName" or "First_Name" => "First Name".
+    Dim lngStart As Long        'Loop through string.
+    Dim strOut As String        'Output string.
+    Dim bWasSpace As Boolean    'Last char. was a space.
+    Dim bWasUpper As Boolean    'Last char. was upper case.
+    
+    strIn = Trim$(strIn)        'Remove leading/trailing spaces.
+    bWasUpper = True            'Initialize for no first space.
+    
+    For lngStart = 1& To Len(strIn)
+        Select Case Asc(Mid(strIn, lngStart, 1&))
+        Case vbKeyA To vbKeyZ   'Upper case: insert a space.
+            If bWasSpace Or bWasUpper Then
+                strOut = strOut & Mid(strIn, lngStart, 1&)
+            Else
+                strOut = strOut & " " & Mid(strIn, lngStart, 1&)
+            End If
+            bWasSpace = False
+            bWasUpper = True
+            
+        Case 95                 'Underscore: replace with space.
+            If Not bWasSpace Then
+                strOut = strOut & " "
+            End If
+            bWasSpace = True
+            bWasUpper = False
+            
+        Case vbKeySpace         'Space: output and set flag.
+            If Not bWasSpace Then
+                strOut = strOut & " "
+            End If
+            bWasSpace = True
+            bWasUpper = False
+            
+        Case Else               'Any other char: output.
+            strOut = strOut & Mid(strIn, lngStart, 1&)
+            bWasSpace = False
+            bWasUpper = False
+        End Select
+    Next
+    
+    ConvertMixedCase = strOut
+End Function
+
+Private Function IgnoreField(fld As DAO.Field) As Boolean
+    'Return True for OLE fields, binary fields.
+    Select Case fld.Type
+    Case dbLongBinary, dbBinary, dbVarBinary
+        IgnoreField = True
+    End Select
+End Function
+
+Private Function IsRichText(fld As DAO.Field) As Boolean
+On Error Resume Next
+    'Purpose:   Returns True if the field has its TextFormat property set to 1.
+    '           False for all other cases (no such property, set to 0, or error.)
+    Const btRich As Byte = 1
+    IsRichText = (fld.Properties("TextFormat") = btRich)
+End Function
+
+Private Function HasProperty(obj As Object, strPropName As String) As Boolean
+    'Purpose: Return true if the object has the property.
+    Dim varDummy As Variant
+
+    On Error Resume Next
+    varDummy = obj.Properties(strPropName)
+    HasProperty = (Err.Number = 0)
+End Function
+
+Private Function FixupFilename(ByVal strFileName As String, strDefaultName As String, strDefaultExt As String) As String
+    'Use the default name if the file name is blank
+    If strFileName = vbNullString Then
+        strFileName = strDefaultName
+    End If
+    'If the file name is a path, add the default file name after a slash.
+    If FolderExists(strFileName) Then
+        If Right$(strFileName, 1&) <> "\" Then
+            strFileName = strFileName & "\"
+        End If
+        strFileName = strFileName & strDefaultName
+    Else
+        strFileName = strFileName
+    End If
+    'If the file name lacks an extension, add the default extension.
+    If (InStr(InStrRev(strFileName, "\") + 1&, strFileName, ".") = 0&) And (strDefaultExt <> vbNullString) Then
+        If strDefaultExt Like ".*" Then
+            strFileName = strFileName & strDefaultExt
+        Else
+            strFileName = strFileName & "." & strDefaultExt
+        End If
+    End If
+    
+    FixupFilename = strFileName
+End Function
+
+Private Function FolderExists(strPath As String) As Boolean
+On Error Resume Next
+    FolderExists = ((GetAttr(strPath) And vbDirectory) = vbDirectory)
+End Function
+
+Private Function FormatCell(fld As DAO.Field, strInitText As String) As String
+    'Purpose:   Return the string for the cell of a table, based on the value of the field.
+    Dim rsMVF As DAO.Recordset      'To handle Multi-Valued fields.
+    Dim strOut As String            'Output string
+    Dim bAlignRight As Boolean      'Flag to right-align this table cell.
+    Dim bIsFormatted As Boolean     'Flag if already formatted as HTML.
+    Dim lngLen As Long              'Length of string.
+    Const strcSep = ", "            'Separator between items in multi-valued fields.
+    
+    If Not IsNull(fld.Value) Then
+        'If this is a Multi-Valued Field, loop the records within it.
+        If VarType(fld.Value) = vbObject Then
+            Set rsMVF = fld.Value
+            Do While Not rsMVF.EOF
+                If fld.Type = 101 Then        'dbAttachment
+                    strOut = strOut & rsMVF!FileName & strcSep
+                Else
+                    strOut = strOut & rsMVF![Value].Value & strcSep
+                End If
+                rsMVF.MoveNext
+            Loop
+            'Remove trailing separator.
+            lngLen = Len(strOut) - Len(strcSep)
+            If lngLen > 0& Then
+                strOut = Left(strOut, lngLen)
+            End If
+            Set rsMVF = Nothing
+            
+        Else
+            Select Case fld.Type
+            Case dbText, dbGUID, dbChar             'Text fields: use the value.
+                strOut = fld.Value
+            Case dbMemo                             'Memo: handle hyperlinks and rich text.
+                If (fld.Attributes And dbHyperlinkField) <> 0& Then
+                    strOut = "<a href=""" & Replace(HyperlinkPart(fld.Value, acAddress), " ", "%20") & """>" & _
+                        HyperlinkPart(fld.Value, acDisplayedValue) & "</a>"
+                    bIsFormatted = True
+                Else
+                    strOut = fld.Value
+                    bIsFormatted = IsRichText(fld)
+                End If
+            Case dbLong, dbInteger, dbDouble, dbSingle, dbByte, dbDecimal, dbFloat, dbBigInt, dbNumeric 'Numbers
+                strOut = fld.Value
+                bAlignRight = True
+            Case dbCurrency                         'Currency fields.
+                strOut = Format$(fld.Value, mstrcCurrencyFormat)
+                bAlignRight = True
+            Case dbDate, dbTime, dbTimeStamp        'Date/time fields
+                strOut = Format$(fld.Value, mstrcDateFormat)
+                bAlignRight = True
+            Case dbBoolean                          'Yes/No fields.
+                strOut = Format$(fld.Value, mstrcYesNoFormat)
+            Case Else                               'Other types.
+                strOut = fld.Value
+            End Select
+        End If
+    End If
+    
+    If strOut = vbNullString Then
+        'Use a non-breaking space for Null or zero-length string (to keep HTML table right.)
+        strOut = "&nbsp;"
+    ElseIf Not bIsFormatted Then
+        'Unless formatting is embedded, handle special characters.
+        strOut = Replace(strOut, "&", "&amp;")
+        strOut = Replace(strOut, """", "&quot;")
+        strOut = Replace(strOut, "<", "&lt;")
+        strOut = Replace(strOut, ">", "&gt;")
+        strOut = Replace(strOut, vbCrLf, "<br>")
+        strOut = Replace(strOut, "  ", " &nbsp;")
+    End If
+    
+    'Add the initial text and reset the string.
+    If strInitText <> vbNullString Then
+        strOut = strInitText & strOut
+        strInitText = vbNullString
+    End If
+    
+    'Add the cell tag, aligned right for numbers/dates.
+    If bAlignRight Then
+        strOut = "<td align=""right"">" & strOut & "</td>"
+    Else
+        strOut = "<td>" & strOut & "</td>"
+    End If
+    
+    FormatCell = strOut
+End Function
+
+Private Function GetIndexString(db As DAO.Database, strSource As String, strIndexField As String) As String
+'On Error GoTo Err_Handler
+    'Purpose:
+    Dim rs As DAO.Recordset
+    Dim strSql As String
+    Dim strOut As String
+    Dim strChar As String
+    Dim i As Integer
+    
+    strSql = "SELECT DISTINCT Left(" & strIndexField & ",1) AS InitialChar FROM " & strSource & vbCrLf & _
+        "WHERE " & strIndexField & " >= ""A*"" ORDER BY Left(" & strIndexField & ",1);"
+    Set rs = db.OpenRecordset(strSql)
+    Do While Not rs.EOF
+        strChar = UCase$(rs!InitialChar)
+        If Asc(strChar) <= vbKeyZ Then
+            strOut = strOut & "<td align=""center""><a href=""#" & strChar & """>" & strChar & "</a></td>" & vbCrLf
+            i = i + 1
+        End If
+        rs.MoveNext
+    Loop
+    rs.Close
+    
+    'Suppress the index if there's only one character.
+    If i > 1 Then
+        GetIndexString = "<p>&nbsp;</p><table border=""0"" width=""100%""><tr>" & vbCrLf & strOut & "</tr></table><p>&nbsp;</p>"
+    End If
+    
+Exit_Handler:
+    Set rs = Nothing
+    Exit Function
+    
+Err_Handler:
+    MsgBox "Error " & Err.Number & ":  " & Err.Description, vbExclamation, "GetIndexString()"
+    Resume Exit_Handler
+End Function
