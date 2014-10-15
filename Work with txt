@@ -1,0 +1,119 @@
+Sub Example1()
+Dim FilePath As String 
+Dim strFirstLine As String 
+
+FilePath = "D:\test.txt"
+Open FilePath For Input As #1
+Line Input #1, strFirstLine
+MsgBox (strFirstLine)
+End Sub 
+
+Sub Example2()
+Dim FilePath As String 
+Dim strFirstLine As String 
+FilePath = "D:\test.txt"
+Open FilePath For Input As #1
+Line Input #1, strFirstLine
+MsgBox (strFirstLine)
+Close #1
+End Sub 
+
+'Instead of using the index “1” we could have used the index “2”:
+
+Sub Example3()
+Dim FilePath As String 
+Dim strFirstLine As String 
+FilePath = "D:\test.txt"
+Open FilePath For Input As #2
+Line Input #2, strFirstLine
+MsgBox (strFirstLine)
+Close #2
+End Sub 
+
+
+
+Sub Example4()
+Dim FilePath As String 
+Dim strLine As String 
+Dim i As Integer 
+
+FilePath = "D:\test2.txt"
+Open FilePath For Input As #1
+i = 1
+While EOF(1) = False
+    'read the next line of data in the text file 
+    Line Input #1, strLine 
+    'print the data in the current row 
+    Cells(i, 1) = strLine 
+    'increment the row counter 
+    i = i + 1 
+Wend
+Close #1
+End Sub 
+
+
+
+
+Example 4, Opening a Text File With a Dialog:
+In the example below the text file is selected using an open file dialog. All the lines of data from the text file are read and printed in column A. For more information about the open file dialog please see Excel VBA Open File Dialog:
+
+Sub Example5()
+
+Dim strLine As String 
+Dim i As Integer 
+Dim intResult As Integer 
+Dim strPath As String 
+
+Application.FileDialog(msoFileDialogOpen).AllowMultiSelect = False
+intResult = Application.FileDialog(msoFileDialogOpen).Show
+If intResult <> 0 Then 
+    strPath = Application.FileDialog(msoFileDialogOpen).SelectedItems(1) 
+Open strPath For Input As #1 
+    i = 1 
+    While EOF(1) = False 
+        'read the next line of data in the text file 
+        Line Input #1, strLine 
+        'print the data in the current row 
+        Cells(i, 1) = strLine 
+        'increment the row counter 
+        i = i + 1 
+    Wend 
+End If 
+Close #1
+End Sub 
+
+
+Example 5, Checking for Errors When Opening the Text File:
+When opening a text file several things could go wrong which could cause the program to crash. It’s always a good idea to add an exception handler to handle such cases. For more information on this issue please see VBA, Check if Text File is Open. The code below asks the user to select a file to open. If the file is opened successfully  all the data in the text file printed in column A. If there is an error while opening the file, a message box is displayed:
+
+Sub Example6()
+Dim strLine As String 
+Dim i As Integer 
+Dim intResult As Integer 
+Dim strPath As String 
+
+Application.FileDialog(msoFileDialogOpen).AllowMultiSelect = False
+intResult = Application.FileDialog(msoFileDialogOpen).Show
+If intResult <> 0 Then 
+    strPath = Application.FileDialog(msoFileDialogOpen).SelectedItems(1) 
+    On Error GoTo lblError: 
+    Open strPath For Input As #1 
+    i = 1 
+    While EOF(1) = False 
+        'read the next line of data in the text file 
+        Line Input #1, strLine 
+        'print the data in the current row 
+        Cells(i, 1) = strLine 
+        'increment the row counter 
+        i = i + 1 
+    Wend 
+End If 
+Close #1
+Exit Sub 
+
+lblError:
+MsgBox ("There was an error opening the file. Implement the necessary actions")
+Err.Clear
+Close #1
+End Sub 
+
