@@ -1,0 +1,125 @@
+Sub Example1()
+Open "D:\Temp\Test.txt" For Output As #1
+Print #1, "Changes to First Line of Text File"
+Close #1
+End Sub 
+
+Sub Example2()
+'Final string to print to file 
+Dim strFinal As String 
+'Line read from original text file 
+Dim strLine As String 
+Close #1
+'open the text file for reading 
+Open "D:\Temp\Test.txt" For Input As #1
+strFinal = ""
+'loop until the end of the text file is reached 
+While EOF(1) = False
+    'read the current line from the text file 
+    Line Input #1, strLine 
+    'concatenate the modified line to the rest of the string 
+    strFinal = strFinal + ModifyColumn3(strLine) 
+Wend 
+strFinal = Left(strFinal, Len(strFinal) - 2)
+'close the file 
+Close #1
+
+'open the file for writing 
+Open "D:\Temp\Test.txt" For Output As #1
+Print #1, strFinal
+'overwrite the file with the new string 
+Close #1
+End Sub
+
+'this function adds 100$ to the last column 
+Function ModifyColumn3(ByVal strInput As String) As String 
+Dim arrString() As String 
+Dim strOutput As String 
+'split the columns 
+arrString = Split(strInput, " ")
+'concatenate the first 2 column as they are 
+strOutput = arrString(0) + " " + arrString(1) + " "
+'add 100$ to column3 
+strOutput = strOutput + Strings.Trim(Str(CDbl(Left(arrString(2), _
+Len(arrString(2)) - 1)) + 100)) + "$" + vbCrLf
+ModifyColumn3 = strOutput
+End Function 
+
+'The line below opens the text file for reading:
+
+Open "D:\Temp\Test.txt" For Input As #1
+
+'The code below loops through the text file until the last line is reached:
+
+While EOF(1) = False
+    'read the current line from the text file 
+    Line Input #1, strLine 
+    'concatenate the modified line to the rest of the string 
+    strFinal = strFinal + ModifyColumn3(strLine) 
+Wend
+
+The line below reads the current line of the text file and stores it in the variable strLine:
+
+Line Input #1, strLine
+
+
+
+
+Sub Example3()
+'selected path for opening the text file 
+Dim strOpenPath As String 
+'selected path for saving the text file 
+Dim strSavePath As String 
+'open file dialog result 
+Dim intOpenResult As Integer 
+Dim strFinal As String 
+Dim strLine As String 
+Close #1
+'remove all previous filters 
+Call Application.FileDialog(msoFileDialogOpen).Filters.Clear
+'apply the .txt file type filtering 
+Call Application.FileDialog(msoFileDialogOpen).Filters.Add("Text File", _
+"*.txt")
+'allow the user to select only one file 
+Application.FileDialog(msoFileDialogOpen).AllowMultiSelect = False
+'display the dialog 
+intOpenResult = Application.FileDialog(msoFileDialogOpen).Show
+If intOpenResult <> 0 Then 
+    'get file path 
+    strOpenPath = Application.FileDialog(msoFileDialogOpen).SelectedItems(1) 
+    Open strOpenPath For Input As #1 
+    strFinal = "" 
+    While EOF(1) = False 
+        Line Input #1, strLine 
+        strFinal = strFinal + ModifyColumn3(strLine) 
+    Wend 
+    Close #1 
+    'get save location 
+    strSavePath = Application.GetSaveAsFilename(FileFilter:="Text File" & _ 
+    "(*.txt),*.txt", Title:="Save Location") 
+    If strSavePath <> "False" Then 
+        Open strSavePath For Output As #1 
+        Print #1, strFinal 
+        Close #1 
+    End If 
+End If 
+End Sub 
+
+
+'remove all previous filters 
+Call Application.FileDialog(msoFileDialogOpen).Filters.Clear
+'apply the .txt file type filtering 
+Call Application.FileDialog(msoFileDialogOpen).Filters.Add("Text File", _
+"*.txt")
+'allow the user to select only one file 
+Application.FileDialog(msoFileDialogOpen).AllowMultiSelect = False
+'display the dialog 
+intOpenResult = Application.FileDialog(msoFileDialogOpen).Show
+
+
+
+
+
+
+
+
