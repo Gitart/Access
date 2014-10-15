@@ -1,0 +1,37 @@
+Code Courtesy of
+'Joe Foster
+'
+Global Const JetDateTimeFmt = "\#mm\/dd\/yyyy hh\:nn\:ss\#;;;\N\u\l\l"
+Global Const JetDateFmt = "\#mm\/dd\/yyyy\#;;;\N\u\l\l"
+Global Const JetTimeFmt = "\#hh\:nn\:ss\#;;;\N\u\l\l"
+and then
+
+SQL = SQL & "When >= " & Format$(Now, JetDateTimeFmt)
+
+In VBA code, delimit dates with the "#" symbol. Regardless or your regional settings, Access expects these literal dates to be in the American format, e.g. #12/31/1999#.
+
+To demonstrate this, enter any date in the Criteria row under a date field in Query Design, and then switch to SQL View. In Query Design view, you see the date according to your local settings, but the SQL statement uses mm/dd/yyyy format.
+
+SQL clauses are not always obvious, e.g. the Filter of a form, the WhereCondition of OpenReport, or the third argument of a domain aggregate function. Examples:
+
+DoCmd.OpenReport "MyReport", acViewPreview, , "InvoiceDate > #12/31/2000#"
+Debug.Print DLookup("StudentID", "tblStudent", "EntryDate = #6/30/1953#")
+strSQL = "SELECT * FROM tblDonation WHERE DonationDate > #" & Format(Me.StartDate, "mm\/dd\/yyyy") & "#;"
+The third example demonstrates how to concatenate a date into a SQL string. The Format() function is essential to force the date into American format. Unfortunately, Format() replaces the slashes with the date separator character defined in Control Panel | Regional Settings, so you must specify literal slashes in the format string by preceding the slash with backslashes.
+
+Since this is something you do frequently, you may find it easy to call a small wrapper function for concatenating date strings. The example below formats it as:
+
+Function SQLDate(varDate As Variant) As String
+    'Purpose:    Return a delimited string in the date format used natively by JET SQL.
+    'Argument:   A date/time value.
+    'Note:       Returns just the date format if the argument has no time component,
+    '                or a date/time format if it does.
+    'Author:     Allen Browne. allen@allenbrowne.com, June 2006.
+    If IsDate(varDate) Then
+        If DateValue(varDate) = varDate Then
+            SQLDate = Format$(varDate, "\#mm\/dd\/yyyy\#")
+        Else
+            SQLDate = Format$(varDate, "\#mm\/dd\/yyyy hh\:nn\:ss\#")
+        End If
+    End If
+End Function
