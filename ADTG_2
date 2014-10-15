@@ -1,0 +1,5 @@
+  Set rst = New ADODB.Recordset
+    rst.Open "C:\test.adtg", ,adOpenStatic, adLockBatchOptimistic, adCmdFile
+
+    Debug.Print "Value in DataSource: " & rst.Fields(0).OriginalValue
+    Debug.Print "Value on Disk      : " & rst.Fields(0).Value
