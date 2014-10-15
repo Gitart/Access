@@ -13,7 +13,7 @@ DoCmd.TransferDatabase acExport, "dBase IV", "C:\", acTable, "tmpEProductPriceDe
 CurrentProject.Connection.Execute "DELETE FROM tmpEProductPriceDetail"
 CurrentProject.Connection.Execute "INSERT INTO tmpEProductPriceDetail SELECT * FROM myTable IN 'C:\' 'dBaseIV;'"
         
-        
+ Add       
 Sub postSmotrim2()
 Dim cmd As ADODB.Command, strFileName As String
 Dim rst As ADODB.Recordset, bb As Long
