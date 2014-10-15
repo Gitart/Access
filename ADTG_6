@@ -14,3 +14,19 @@ CurrentProject.Connection.Execute "DELETE FROM tmpEProductPriceDetail"
 CurrentProject.Connection.Execute "INSERT INTO tmpEProductPriceDetail SELECT * FROM myTable IN 'C:\' 'dBaseIV;'"
         
         
+Sub postSmotrim2()
+Dim cmd As ADODB.Command, strFileName As String
+Dim rst As ADODB.Recordset, bb As Long
+strFileName = "D:\1.adtg"
+Set rst = New ADODB.Recordset
+rst.ActiveConnection = CurrentProject.Connection
+rst.CursorType = adOpenStatic
+rst.LockType = adLockOptimistic
+rst.Open Source:=strFileName, Options:=adCmdFile
+Set Me.Список99.Recordset = rst
+
+'А хотелось БЫ:
+'Set Me.Список99.Recordset = rst.Filter ("Grp = " & Me.Список7)
+rst.Close
+Set rst = Nothing
+End Sub
