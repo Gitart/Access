@@ -1,0 +1,113 @@
+
+''Require that all variables be declared
+Option Explicit
+
+''======================================================
+'' Program:    ParseText
+'' Desc:       Reads a text file into a variable then
+''             writes it into a row, n chars at a time
+'' Called by:  user
+'' Call:
+'' Arguments:
+'' Comments:   Written quickly. No error-checking.
+'' Changes----------------------------------------------
+'' Date        Programmer     Change
+'' 6/14/06     Charley Kyd    Written
+''======================================================
+Sub ParseText()
+   Dim sText As String, sFile As String
+
+   ''Get the full path to the source file
+   With ThisWorkbook
+      sFile = .Names("SourcePath").RefersToRange
+      If Left(sFile, 1) <> "\" Then sFile = sFile & "\"
+      sFile = sFile & .Names("SourceFile").RefersToRange
+   End With
+
+   ''Get the full text string from the text file
+  sText = GetText(sFile)
+
+   ''Remove all nonprintable characters from the text
+   ''Comment out if the characters are wanted
+   sText = Excel.WorksheetFunction.Clean(sText)
+
+   ''Write to the workbook
+   WriteToSheet sText
+End Sub
+
+''======================================================
+'' Program:    GetText
+'' Desc:       Read a text file into a string and then
+''             return the string
+'' Called by:  ParseText
+'' Call:       GetText(sFile)
+'' Arguments:  sFile--The full path to the text file
+'' Comments:
+'' Changes----------------------------------------------
+'' Date      Programmer   Change
+'' 6/14/06   Charley Kyd  Written
+''======================================================
+Function GetText(sFile As String) As String
+   Dim nSourceFile As Integer, sText As String
+
+   ''Close any open text files
+   Close
+
+   ''Get the number of the next free text file
+   nSourceFile = FreeFile
+
+   ''Write the entire file to sText
+   Open sFile For Input As #nSourceFile
+   sText = Input$(LOF(1), 1)
+   Close
+
+   GetText = sText
+End Function
+
+''======================================================
+'' Program:    WriteToSheet
+'' Desc:       Writes a text string to one row of a
+''             worksheet, n characters per column
+'' Called by:  ParseText
+'' Call:       WriteToSheet sText
+'' Arguments:  sText--String with text from text file
+'' Comments:   This routine will throw an error if the
+''             text is too long to fit within 256 columns
+'' Changes----------------------------------------------
+'' Date      Programmer   Change
+'' 6/14/06   Charley Kyd  Written
+''======================================================
+Sub WriteToSheet(sText As String)
+   Dim sTgtSheet As String, nTgtRow As Integer
+   Dim nColCount As Integer, sChunk As String
+   Dim nIncrement As Integer, rngRef As Range
+
+   ''Get the controlling variables
+   With ThisWorkbook
+      sTgtSheet = .Names("TargetSheet").RefersToRange
+      nTgtRow = .Names("TargetRow").RefersToRange
+      nIncrement = .Names("Increment").RefersToRange
+
+      Set rngRef = Worksheets(sTgtSheet).Cells(nTgtRow, 1)
+   End With
+
+   ''Erase any previous entries
+   rngRef.EntireRow.ClearContents
+
+   ''Initialize the column counter
+   nColCount = 0
+
+   ''Loop thru the string, grabbing text of specified
+   ''length, writing the text to the spreadsheet
+   Do
+      ''Increment the column count
+      nColCount = nColCount + 1
+      ''Grab the current chunk of text
+      sChunk = Mid$(sText, 1 + (nColCount - 1) * _
+          nIncrement, nIncrement)
+      ''Write it to the spreadsheet
+      rngRef.Cells(1, nColCount) = sChunk
+
+      ''Stop after writing a partial chunk
+   Loop Until Len(sChunk) < nIncrement
+End Sub
