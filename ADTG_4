@@ -1,0 +1,42 @@
+'BeginSave2VB
+Public Sub Main()
+    On Error GoTo ErrorHandler
+
+    Dim rst As ADODB.Recordset
+    Set rst = New ADODB.Recordset
+    
+    'For sake of illustration, we specify all parameters
+    rst.Open "c:\Pubs.xml", "Provider=MSPersist;", adOpenForwardOnly, adLockBatchOptimistic, adCmdFile
+    
+    'Now you have a local, disconnected Recordset - Edit as you desired
+    '(In this example the change makes no difference)
+    rst.Find "au_lname = 'Carson'"
+    If rst.EOF Then
+       Debug.Print "Name not found."
+       Exit Sub
+    End If
+    
+    rst!city = "Chicago"
+    rst.Update
+    
+    'Save changes in ADTG format this time, purely for sake of illustration.
+    'Note that the previous version is still on the diskette, as a:\Pubs.xml.
+    rst.Save "c:\Pubs.adtg", adPersistADTG
+
+    ' clean up
+    rst.Close
+    Set rst = Nothing
+    Exit Sub
+    
+ErrorHandler:
+    'clean up
+    If Not rst Is Nothing Then
+        If rst.State = adStateOpen Then rst.Close
+    End If
+    Set rst = Nothing
+    
+    If Err <> 0 Then
+        MsgBox Err.Source & "-->" & Err.Description, , "Error"
+    End If
+End Sub
+'EndSave2VB
