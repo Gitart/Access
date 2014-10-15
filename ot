@@ -1,0 +1,90 @@
+Imports System
+Imports System.Collections.Generic
+imports System.IO
+imports System.IO.Compression
+
+Public Class CompressionSnippet
+
+    Public Shared Sub Main()
+        Dim path As String = "test.txt"
+
+        ' Create the text file if it doesn't already exist.
+        If Not File.Exists(path) Then
+            Console.WriteLine("Creating a new test.txt file")
+            Dim text() As String = {"This is a test text file.", _
+                "This file will be compressed and written to the disk.", _
+                "Once the file is written, it can be decompressed", _
+                "imports various compression tools.", _
+                "The GZipStream and DeflateStream class use the same", _
+                "compression algorithms, the primary difference is that", _
+                "the GZipStream class includes a cyclic redundancy check", _
+                "that can be useful for detecting data corruption.", _
+                "One other side note: both the GZipStream and DeflateStream", _
+                "classes operate on streams as opposed to file-based", _
+                "compression data is read on a byte-by-byte basis, so it", _
+                "is not possible to perform multiple passes to determine the", _
+                "best compression method. Already compressed data can actually", _
+                "increase in size if compressed with these classes."}
+
+            File.WriteAllLines(path, text)
+        End If
+
+        Console.WriteLine("Contents of {0}", path)
+        Console.WriteLine(File.ReadAllText(path))
+
+        CompressFile(path)
+        Console.WriteLine()
+
+        UncompressFile(path + ".gz")
+        Console.WriteLine()
+
+        Console.WriteLine("Contents of {0}", path + ".gz.txt")
+        Console.WriteLine(File.ReadAllText(path + ".gz.txt"))
+
+    End Sub
+
+    Public Shared Sub CompressFile(ByVal path As String)
+        Dim sourceFile As FileStream = File.OpenRead(path)
+        Dim destinationFile As FileStream = File.Create(path + ".gz")
+
+        Dim buffer(sourceFile.Length) As Byte
+        sourceFile.Read(Buffer, 0, Buffer.Length)
+
+        Using output As New GZipStream(destinationFile, _
+            CompressionMode.Compress)
+
+            Console.WriteLine("Compressing {0} to {1}.", sourceFile.Name, _
+                destinationFile.Name, False)
+
+            output.Write(buffer, 0, buffer.Length)
+        End Using
+
+        ' Close the files.
+        sourceFile.Close()
+        destinationFile.Close()
+    End Sub
+
+    Public Shared Sub UncompressFile(ByVal path As String)
+        Dim sourceFile As FileStream = File.OpenRead(path)
+        Dim destinationFile As FileStream = File.Create(path + ".txt")
+
+        ' Because the uncompressed size of the file is unknown, 
+        ' we are imports an arbitrary buffer size.
+        Dim buffer(4096) As Byte
+        Dim n As Integer
+
+        Using input As New GZipStream(sourceFile, _
+            CompressionMode.Decompress, False)
+
+            Console.WriteLine("Decompressing {0} to {1}.", sourceFile.Name, _
+                destinationFile.Name)
+
+            n = input.Read(buffer, 0, buffer.Length)
+            destinationFile.Write(buffer, 0, n)
+        End Using
+
+        ' Close the files.
+        sourceFile.Close()
+        destinationFile.Close()
+    End Sub
+End Class
