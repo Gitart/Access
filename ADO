@@ -1,0 +1,228 @@
+ADO Programming Code Examples
+
+This page is a reference for developers, demonstrating how to use the ADO library to list and manipulate the objects in Access.
+
+ADO (ActiveX Data Objects) is more generic than DAO (the one designed to handle the objects in Access), so supports features of databases other than Access. In the wider world beyond Access, ADO has largely been replaced by the quite different ADO.NET library.
+
+In general, DAO is preferred over ADO, but there are some operations that work under ADO only. In general, these work in code only. They will not work if you try them in the Query window, since Access itself uses DAO. They also require JET 4 (Access 2000 or later.)
+
+ADO provides only limited ways to manipulate the data structure (typically via DDL query statements), unless you also use the ADOX library which provides the extensions to get to the database catalog.
+
+To use the ADO Library, choose References on the Tools menu in the code window, and check the box beside:
+    Microsoft ActiveX Data Objects 2.x Library
+
+There is no explanation of the code beyond in-line comments, and no error handling in most examples.
+
+Index of Functions	Description
+ShowSchema()	List the tables
+AdoRecordsetExample()	Open a recordset
+CreateViewAdo()	Create a new query
+ModifyViewAdo()	Modify a query
+ShowBand()	Illustrate the BAND operator with literals. (ADO only.)
+TestBnot()	Illustrate BNOT (binary NOT) operator (ADO only.)
+TestBand()	Illustrate BAND (binary AND) operator. (ADO only.)
+ShowUserRosterMultipleUsers()	List the users currently connected to the database.
+UserCount()	Count the number of distinct users connected to the database.
+ExecuteADO()	Execute an action query with ADO, and know how many records were inserted/deleted/changed.
+Option Compare Database
+Option Explicit
+
+Function ShowSchema()
+    'Purpose:   List the tables, using ADO.
+    Dim cn As ADODB.Connection
+    Dim rs As ADODB.Recordset
+    Dim i As Integer
+    
+    Set cn = CurrentProject.Connection
+    Set rs = cn.OpenSchema(adSchemaTables, Array(Empty, Empty, Empty, "TABLE"))
+'    For i = 0 To rs.Fields.Count - 1
+'        Debug.Print rs.Fields(i).Name
+'    Next
+
+    Do While Not rs.EOF
+        Debug.Print rs.Fields("TABLE_NAME").Value
+        rs.MoveNext
+    Loop
+    rs.Close
+    
+    Set rs = Nothing
+    Set cn = Nothing
+End Function
+
+Function AdoRecordsetExample()
+    'Purpose:   Open a recordset using ADO.
+    Dim rs As New ADODB.Recordset
+    Dim strSql As String
+    
+    strSql = "SELECT MyField FROM MyTable;"
+    rs.Open strSql, CurrentProject.Connection
+    
+    Do While Not rs.EOF
+        Debug.Print rs!MyField
+        rs.MoveNext
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Function CreateViewAdo()
+    'Purpose:   Create a new query using ADO.
+    Dim cn As ADODB.Connection
+    Dim strSql As String
+    
+    strSql = "CREATE VIEW MyTableView AS SELECT MyTable.* FROM MyTable;"
+    Set cn = CurrentProject.Connection
+    cn.Execute strSql
+    
+    Debug.Print "MyTableView created"
+    Set cn = Nothing
+End Function
+
+Function ModifyViewAdo()
+    'Purpose:   Modify a query using ADO.
+    Dim cn As ADODB.Connection
+    Dim strSql As String
+    
+    strSql = "ALTER TABLE Query1 AS SELECT MyTable.* FROM MyTable;"
+    Set cn = CurrentProject.Connection
+    cn.Execute strSql
+    
+    Debug.Print "MyTableView modified"
+    Set cn = Nothing
+End Function
+
+Function ShowBand()
+    Dim rs As New ADODB.Recordset
+    rs.Open "SELECT (2 BAND 4) AS Result;", CurrentProject.Connection
+    ShowBand = rs!Result
+    rs.Close
+    Set rs = Nothing
+End Function
+
+Function TestBnot()
+    'Purpose:   Illustrate BNOT (binary NOT) operator (ADO only.)
+    Dim cn As ADODB.Connection
+    Dim strSql As String
+    Dim lngKt As Long
+    
+    Set cn = CurrentProject.Connection
+    strSql = "UPDATE MyTable SET MyIntFlip = BNOT MyInt WHERE MyIntFlip Is Not Null;"
+    
+    cn.Execute strSql, lngKt
+    
+    Set cn = Nothing
+    TestBnot = lngKt
+End Function
+
+Function TestBand()
+    'Purpose:   Illustrate BAND (binary AND) operator. (ADO only.)
+    Dim rs As New ADODB.Recordset
+    Dim strSql As String
+    
+    strSql = "SELECT MyBitField, (MyBitField BAND 2) <> 0 As MyResult FROM MyTable;"
+    rs.Open strSql, CurrentProject.Connection
+    
+    Do While Not rs.EOF
+        Debug.Print rs!MyBitfield, rs!MyResult
+        rs.MoveNext
+    Loop
+    
+    rs.Close
+    Set rs = Nothing
+End Function
+Function ShowUserRosterMultipleUsers()
+    'Source: kb 198755.
+    Dim cn As New ADODB.Connection
+    'Dim cn2 As New ADODB.Connection
+    Dim rs As New ADODB.Recordset
+    Dim i, j As Long
+
+    cn.Provider = "Microsoft.Jet.OLEDB.4.0"
+    cn.Open "Data Source=C:\Data\Northwind2003.mdb"
+
+    'cn2.Open "Provider=Microsoft.Jet.OLEDB.4.0;" & "Data Source=C:\Data\Northwind2003.mdb"
+
+    ' The user roster is exposed as a provider-specific schema rowset
+    ' in the Jet 4 OLE DB provider.  You have to use a GUID to
+    ' reference the schema, as provider-specific schemas are not
+    ' listed in ADO's type library for schema rowsets
+
+    Set rs = cn.OpenSchema(adSchemaProviderSpecific, , "{947bb102-5d43-11d1-bdbf-00c04fb92675}")
+
+    'Output the list of all users in the current database.
+
+    Debug.Print rs.Fields(0).Name, "", rs.Fields(1).Name, "", rs.Fields(2).Name, rs.Fields(3).Name
+
+    While Not rs.EOF
+        Debug.Print rs.Fields(0), rs.Fields(1), rs.Fields(2), rs.Fields(3)
+        rs.MoveNext
+    Wend
+End Function
+
+Function UserCount() As Long
+    Dim cnLocal As ADODB.Connection             'Current project connection.
+    Dim cnBackEnd As New ADODB.Connection       'Connection to back end database.
+    Dim rsBEUserRoster As New ADODB.Recordset   'JET User Roster for back end database.
+    Dim rsTarget As New ADODB.Recordset         'Temp table to record users and de-dupe.
+    Dim strPath As String                       'Full path to back end.
+    Dim strSql As String                        'SQL string.
+    Dim lngKt As Long                           'Loop controller.
+    Dim dtEnteredOn As Date                     'Current date and time.
+    
+    'Set this to the full path of your back end database.
+    strPath = "C:\Data\Northwind2003.mdb"
+    
+    'Open the JET User Roster for the back end.
+    cnBackEnd.Provider = "Microsoft.Jet.OLEDB.4.0"
+    cnBackEnd.Open "Data Source=" & strPath
+    Set rsBEUserRoster = cnBackEnd.OpenSchema(adSchemaProviderSpecific, , _
+        "{947bb102-5d43-11d1-bdbf-00c04fb92675}")
+    
+    'Clear temp table, and copy the user roster in.
+    dtEnteredOn = Now()
+    Set cnLocal = CurrentProject.Connection
+    cnLocal.Execute "DELETE FROM tzJetUserRoster;"
+    rsTarget.Open "tzJetUserRoster", cnLocal, adOpenDynamic, adLockOptimistic
+    Do While Not rsBEUserRoster.EOF
+        rsTarget.AddNew
+            For lngKt = 0 To 3
+                rsTarget(lngKt) = rsBEUserRoster(lngKt)
+                rsTarget!EnteredOn = dtEnteredOn
+            Next
+        rsTarget.Update
+        rsBEUserRoster.MoveNext
+    Loop
+    rsTarget.Close
+    rsBEUserRoster.Close
+    cnBackEnd.Close
+    
+    'Get the count of the number of distinct users who are connected.
+    strSql = "SELECT DISTINCT Computer_Name FROM tzJetUserRoster WHERE Connected = True;"
+    Set rsTarget = New ADODB.Recordset
+    rsTarget.Open strSql, cnLocal, adOpenKeyset
+    If Not (rsTarget.BOF And rsTarget.EOF) Then
+        rsTarget.MoveLast
+        UserCount = rsTarget.RecordCount
+    End If
+    rsTarget.Close
+    
+    'Dereference objects
+    Set rsTarget = Nothing
+    Set rsBEUserRoster = Nothing
+    Set cnLocal = Nothing
+    Set cnBackEnd = Nothing
+End Function
+
+Function ExecuteADO() As Long
+    'Purpose:   How to execute an action query with ADO.
+    'Return:    Number of records affected by action query.
+    Dim strSql As String
+    Dim lngKt As Long
+    
+    strSql = "INSERT INTO tblClient (Surname, FirstName ) " & _
+        "SELECT 'Smith' AS Surname, 'Jim' AS FirstName;"
+    CurrentProject.Connection.Execute strSql, lngKt
+    
+    ExecuteADO = lngKt
+End Function
