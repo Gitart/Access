@@ -1,0 +1,154 @@
+DDL Code Examples
+
+The SQL standard has sublanguages such as:
+
+Data Manipulation Language (DML): SELECT statements and action queries (DELETE, UPDATE, INSERT INTO, ...)
+Data Definition Language (DDL): Statements that alter the schema (changing the tables, fields, indexes, relations, queries, etc.)
+Object	Type
+Table	1
+Query	5
+Linked Table	4, 6, or 8
+Form	-32768
+Report	-32764
+Module	-32761
+Using DML queries, you can read some aspects of the database schema.
+You can list the objects in an Access database like this:
+   SELECT MSysObjects.Type, MSysObjects.Name
+   FROM MSysObjects
+   WHERE MSysObjects.Name Not Like "~*"
+   ORDER BY MSysObjects.Type, MSysObjects.Name;
+where Type will be one of the values in the table at right.
+(Unfortunately, DML provides no easy way to read the field names in a table.)
+
+DDL provides another whole range of query statements such as:
+CREATE TABLE to generate a new table, specifying field names, types, and constraints
+ALTER TABLE to add a column to a table, delete a column, or change a column's data type or size.
+DROP TABLE to delete a table.
+Similarly, you can CREATE/ALTER/DROP other things such as indexes, constraints, views and procedures (queries), users and groups (security.)
+
+While DDL is important in some larger databases, it is of limited use in Access. You can create a Text field, but you cannot set the Allow Zero Length property to No, so any query criteria must test for both Nulls and zero-length strings. You can create a Yes/No field, but you get a text box, not a check box, since you cannot set the Display Control property with DDL. You can create a Date/Time field, but you cannot set the Format property. DDL cannot create Hyperlink fields, Attachment fields, or the complex data types at all.
+
+Ultimately, you execute your DDL query under DAO or ADO. For DAO, use:
+    dbEngine(0)(0).Execute strSql, dbFailOnError
+For ADO, use:
+    CurrentProject.Connection.Execute strSql
+Some features of JET 4 (Access 2000 and later) are supported under ADO only. These queries fail if you paste the SQL statement into the query designer in Access, since the Access interface uses DAO.
+
+One case where DDL is really useful it to change a field's data type or size. You cannot do this in DAO or ADOX, so DDL is your the only practical approach (other than copying everything to another field and deleting the old one.) Other than that, Access developers use DDL infrequently.
+
+See the field type reference for a comparison of the field type names in DDL compared to the Access interface and libraries.
+
+Here's some examples to get you started if you need DDL.
+
+Index of Functions	Description
+CreateTableDDL()	Create two tables, their indexes and relation, illustrating the different field types and setting properties.
+CreateFieldDDL()	Illustrates how to add a field to a table
+CreateFieldDDL2()	Add a field to a table in another database
+CreateViewDDL()	Create a new query
+DropFieldDDL()	Delete a field from a table
+ModifyFieldDDL()	Change the type or size of a field. (This is the most common use for DDL.)
+AdjustAutoNum()	Set the Seed of an AutoNumber
+DefaultZLS()	Create a field that defaults to a zero-length string
+Option Compare Database
+Option Explicit
+
+Sub CreateTableDDL()
+    'Purpose:   Create two tables, their indexes and relation using DDL.
+    Dim cmd As New ADODB.Command
+    Dim strSql As String
+    
+    'Initialize
+    cmd.ActiveConnection = CurrentProject.Connection
+
+    'Create the Contractor table.
+    strSql = "CREATE TABLE tblDdlContractor " & _
+        "(ContractorID COUNTER CONSTRAINT PrimaryKey PRIMARY KEY, " & _
+        "Surname TEXT(30) WITH COMP NOT NULL, " & _
+        "FirstName TEXT(20) WITH COMP, " & _
+        "Inactive YESNO, " & _
+        "HourlyFee CURRENCY DEFAULT 0, " & _
+        "PenaltyRate DOUBLE, " & _
+        "BirthDate DATE, " & _
+        "EnteredOn DATE DEFAULT Now(), " & _
+        "Notes MEMO, " & _
+        "CONSTRAINT FullName UNIQUE (Surname, FirstName));"
+    cmd.CommandText = strSql
+    cmd.Execute
+    Debug.Print "tblDdlContractor created."
+    
+    'Create the Booking table.
+    strSql = "CREATE TABLE tblDdlBooking " & _
+        "(BookingID COUNTER CONSTRAINT PrimaryKey PRIMARY KEY, " & _
+        "BookingDate DATE CONSTRAINT BookingDate UNIQUE, " & _
+        "ContractorID LONG REFERENCES tblDdlContractor (ContractorID) " & _
+            "ON DELETE SET NULL, " & _
+        "BookingFee CURRENCY, " & _
+        "BookingNote TEXT (255) WITH COMP NOT NULL);"
+    cmd.CommandText = strSql
+    cmd.Execute
+    Debug.Print "tblDdlBooking created."
+End Sub
+
+Sub CreateFieldDDL()
+    'Purpose:   Illustrates how to add a field to a table using DDL.
+    Dim strSql As String
+    Dim db As DAO.Database
+    
+    Set db = CurrentDb()
+    strSql = "ALTER TABLE MyTable ADD COLUMN MyNewTextField TEXT (5);"
+    db.Execute strSql, dbFailOnError
+    Set db = Nothing
+    Debug.Print "MyNewTextField added to MyTable"
+End Sub
+
+Function CreateFieldDDL2()
+    'Purpose:   Add a field to a table in another database using DDL.
+    Dim strSql As String
+    Dim db As DAO.Database
+    
+    Set db = CurrentDb()
+    strSql = "ALTER TABLE Table IN 'C:\Data\junk.mdb' ADD COLUMN MyNewField TEXT (5);"
+    db.Execute strSql, dbFailOnError
+    Set db = Nothing
+    Debug.Print "MyNewField added"
+End Function
+
+Function CreateViewDDL()
+    'Purpose:   Create a new query using DDL.
+    Dim strSql As String
+    
+    strSql = "CREATE VIEW qry1 as SELECT tblInvoice.* from tblInvoice;"
+    CurrentProject.Connection.Execute strSql
+End Function
+
+Sub DropFieldDDL()
+    'Purpose:   Delete a field from a table using DDL.
+    Dim strSql As String
+    
+    strSql = "ALTER TABLE [MyTable] DROP COLUMN [DeleteMe];"
+    DBEngine(0)(0).Execute strSql, dbFailOnError
+End Sub
+
+Sub ModifyFieldDDL()
+    'Purpose:   Change the type or size of a field using DDL.
+    Dim strSql As String
+    
+    strSql = "ALTER TABLE MyTable ALTER COLUMN MyText2Change TEXT(100);"
+    DBEngine(0)(0).Execute strSql, dbFailOnError
+End Sub
+
+Function AdjustAutoNum()
+    'Purpose:   Set the Seed of an AutoNum using DDL.
+    Dim strSql As String
+    
+    strSql = "ALTER TABLE MyTable ALTER COLUMN ID COUNTER (1000,1);"
+    CurrentProject.Connection.Execute strSql
+End Function
+
+Function DefaultZLS()
+    'Purpose:   Create a field that defaults to a zero-length string using DDL.
+    Dim strSql As String
+    
+    strSql = "ALTER TABLE MyTable ADD COLUMN MyZLSfield TEXT (100) DEFAULT """";"
+    CurrentProject.Connection.Execute strSql
+End Function
