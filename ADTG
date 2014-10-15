@@ -1,0 +1,92 @@
+Public Sub SaveRecordset()
+Dim rst As ADODB.Recordset
+Dim strFile As String
+ 
+Set rst = New ADODB.Recordset
+ 
+'Open the recordset from the database
+rst.Open "tblCustomers", CurrentProject.Connection, _
+               adOpenStatic, adLockOptimistic
+ 
+'Construct a file name to use (ADTG or XML)
+strFile = CurrentProject.Path & "\Customers.adtg"      'OR
+'strFile = CurrentProject.Path & "\Customers.xml"
+ 
+'Destroy any existing file. Necessary because the Save Method 
+will fail if the specified file already exists.
+On Error Resume Next
+Kill strFile
+Err.Clear
+ 
+'Now save the recordset to disk (ADTG Format)
+rst.Save strFile, adPersistADTG
+ 
+'Close the recordset in memory
+rst.Close
+End Sub
+
+
+Public Sub RetrieveRecordset()
+Dim rst As ADODB.Recordset
+Dim strFile As String
+ 
+Set rst = New ADODB.Recordset
+ 
+'Construct a file name to use
+strFile = CurrentProject.Path &&;nbsp;"\Customers.adtg"     &nbsp;'OR
+'strFile = CurrentProject.Path &&amp;nbsp;"\Customers.xml"
+ 
+'Make sure the file exists
+  If Len(Dir(strFile)) > 0 Then
+     'Open the recordset from the file
+      rst.Open strFile, , adOpenStatic, adLockOptimistic
+     'Reconnect the ;;recordset to the database
+      rst.ActiveConnection = CurrentProject.Connection
+     'Make a change and save it
+         rst.Fields("ContactTitle") = "Sales Rep"
+         rst.Update
+  End If
+  rst.Close
+    Set rst = Nothing
+End Sub
+
+
+
+Public Sub ufTestCompactTable()
+Dim rst As ADODB.Recordset
+
+    Set rst = New ADODB.Recordset
+    rst.Open "tmpEProductPriceDetail", CurrentProject.Connection, adOpenStatic, adLockOptimistic
+
+On Error Resume Next
+    Kill "C:\test.adtg"
+On Error GoTo 0
+
+    rst.Save "C:\test.adtg", adPersistADTG
+    rst.Close
+    
+    Debug.Print "Сохранено успешно"
+    
+End Sub
+
+2. Удаляю все записи из таблицы tmpEProductPriceDetail
+CurrentProject.Connection.Execute "delete from tmpEProductPriceDetail"
+
+3. Пытаюсь восстановить данные из ранее сохраненного файла (по Гетцу)
+
+Public Sub ufTestExtractTable()
+Dim rst     As ADODB.Recordset
+ 
+    Set rst = New ADODB.Recordset
+    
+    rst.Open "C:\test.adtg", , adOpenStatic, adLockBatchOptimistic
+    rst.ActiveConnection = CurrentProject.Connection
+    rst.UpdateBatch
+    rst.Close
+    
+    Debug.Print "Ok"
+    
+End Sub
+
+
+
