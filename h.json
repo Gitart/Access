@@ -9,7 +9,7 @@
           "properties": {
             "prop0": "value0"
           },
-          "coordinates": [102, 0.5]
+          "coordinates": [52, 0.5]
         },
         {
           "type": "LineString",
